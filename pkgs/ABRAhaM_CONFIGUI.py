@@ -9,6 +9,9 @@ from Tkinter import *
 import xml.etree.ElementTree as et
 import ABRAhaM_DOC as abedocs
 
+
+#TODONEXT:Check disabled account variable saving, recalling, also make disabled a tickbox in edit and password values hidden in edit
+
 #TODO: Change the scrollbox to a listbox on account and preference selection
 #TODO: Set up advanced account settings with button that spawns another screen contianing all the settings (i.e. timeouts, retries, error messages, alerts when x, etc
 #TODO: Assemble classes with similar class types under class groups...i.e.Configfile, Accounts, Preferences, etc.
@@ -16,7 +19,6 @@ import ABRAhaM_DOC as abedocs
 
 accountsdict=dict()
 settingsdict=dict()
-xmlconfig=None
 
 class ConfigError(Exception):
     def __init__(self,message):
@@ -28,11 +30,13 @@ class ConfigFile:
         self.root.withdraw()
         if os.path.exists(configfile):
             try:
-                self.xmlroot=et.parse(configfile)
-                self.xmlroot=self.xmlroot.getroot()
+                self.xmlroot=et.parse(configfile).getroot()
                 self.xmlacnts=self.xmlroot.find('Accounts')
                 if self.xmlacnts==None:
                     self.xmlacnts=et.SubElement(self.xmlroot, 'Accounts')
+                else:
+                    for acnt in xmlacnts.iter():
+                        accountsdict[acnt.tag]={'password':acnt.find('password').text,'disabled':acnt.find('disabled').text, 'retries':acnt.find('retries').text, 'type':acnt.find('type').text}
                 self.xmlgeneral=self.xmlroot.find('Preferences')
                 if self.xmlpreferences==None:
                     self.xmlpreferences=et.SubElement(self.xmlroot, 'Preferences')
@@ -103,31 +107,109 @@ class AddSettings:
         Label(top, text="Add Settings Dialog").grid(column=0, row=0, columnspan=2,sticky='ew')
 
 class EditSettings:
+    def __init__(self, parent,setting):
+        """Edit a setting selected before calling this class."""
+        self.value_list=[]
+        self.setting=setting
+        top=self.top=Toplevel(parent)
+        Label(top, text="Editing Selected Setting").grid(column=0, row=0, columnspan=2,sticky='ew')
+        self.value_list = []
+        row=1
+        for k,v in settingsdict[self.setting].iteritems():
+            var=StringVar()
+            var.set(v)
+            if k=='disabled':
+                x=Checkbutton(self.top, text='Disabled', onvalue='true', offvalue='false',variable=var).grid(row=row,column=0, columnspan=2, sticky='ew')
+            else:
+                Label(self.top, text=k).grid(row=row, column=0,sticky='ew')
+                Entry(self.top, textvariable=var).grid(row=row, column=1,sticky='ew')
+            row+=1
+            self.value_list.append((k,var))
+        Button(self.top, text='Save Settings',command=self.save_changes).grid(row=row+1, column=0, sticky='ew')
+        Button(self.top, text="Cancel Changes", command=lambda: self.top.destroy()).grid(row=row+1, column=1, sticky='ew')
+
+    def save_changes(self):
+        for i in self.value_list:
+            settingsdict[self.setting][i[0]]=i[1].get()
+        self.top.destroy()
+
+class SelectSettingEdit:
     def __init__(self, parent):
         top=self.top=Toplevel(parent)
-        Label(top, text="Edit Settings Dialog").grid(column=0, row=0, columnspan=2,sticky='ew')
+        Label(top, text="Select A Setting To Edit").grid(column=0, row=0, columnspan=2)
+        self.settings=Listbox(top)
+        for k in settingsdict.keys():
+            self.settings.insert(END, k)
+        self.ok=Button(top, text='Select',command=self.select)
+        self.delete=Button(top, text='Delete Selected', command=self.deleteSetting)
+        self.done=Button(top, text='Done',command=self.top.destroy)
+        self.ok.grid(column=0,row=4,sticky='ew')
+        self.delete.grid(column=0, row=5, columnspan=2, sticky='ew')
+        self.done.grid(column=1, row=4,sticky='ew')
+        self.settings.grid(column=0, row=1, columnspan=2, rowspan=3, sticky='ew')
 
-class EditAccount:
+    def deleteSetting(self):
+        x=response=tkMessageBox.askokcancel("Deletion Confirmation","Are you sure you would like to delete this Setting?")
+        if x:
+            setting=self.settings.get(self.settings.curselection())
+            settingsdict.pop(setting)
+            sol=tkMessageBox.askokcancel('Continue Editing?','Would you like to continue editing?')
+            if sol:
+                self.settings.destroy()
+                self.settings=Listbox(self.top)
+                for k in settingsdictdict.keys():
+                    self.settings.insert(END, k)
+                self.settings.grid(column=0, row=1, rowspan=3, columnspan=2)
+                self.settings.focus_set()
+            else:
+                self.top.destroy()
+
+    def select(self):
+        setting=self.settings.get(self.settings.curselection())
+        d=EditSettings(self.top, setting)
+        self.top.wait_window(d.top)
+
+class EditAccount:#DONEDONEDONE
     def __init__(self, parent,account):
-        """Edit an account selected before calling this class"""
+        """Edit an account selected before calling this class
+        User cannot directly edit the account type.  To change the account type
+        you must delete this account and create a new one."""
         self.value_list=[]
+        self.account=account
         top=self.top=Toplevel(parent)
         Label(top, text="Editing Account Information").grid(column=0, row=0, columnspan=2,sticky='ew')
         self.value_list = []
         row=1
-        for k,v in accountsdict[account].iteritems():
+        for k,v in accountsdict[self.account].iteritems():
             var=StringVar()
             var.set(v)
-            Label(self.top, text=k).grid(row=row, column=0)
-            Entry(self.top, textvariable=var).grid(row=row, column=1)
+            if k=='disabled':
+                x=Checkbutton(self.top, text='Disabled', onvalue='true', offvalue='false',variable=var).grid(row=row,column=0, columnspan=2, sticky='ew')
+            else:
+                Label(self.top, text=k).grid(row=row, column=0,sticky='ew')
+                if k=='type':
+                    Entry(self.top, textvariable=var, state=DISABLED).grid(row=row, column=1,sticky='ew')
+                elif k=='password':
+                    Entry(self.top, textvariable=var, show='*').grid(row=row, column=1, sticky='ew')
+                else:
+                    Entry(self.top, textvariable=var).grid(row=row, column=1,sticky='ew')
+
             row+=1
             self.value_list.append((k,var))
-        Button(self.top, text='Save',command=self.save_changes).grid()
-        Button(self.top, text="Cancel", command=lambda: self.top.destroy()).grid()
+        Button(self.top, text='Save Settings',command=self.save_changes).grid(row=row+1, column=0, sticky='ew')
+        Button(self.top, text="Cancel Changes", command=lambda: self.top.destroy()).grid(row=row+1, column=1, sticky='ew')
 
     def save_changes(self):
         for i in self.value_list:
-            print i[0], i[1].get()
+            if i[0]=='password':
+                accountsdict[self.account]['password']=i[1].get()
+            elif i[0]=='disabled':
+                accountsdict[self.account]['disabled']=i[1].get()
+            elif i[0]=='retries':
+                accountsdict[self.account]['retries']=i[1].get()
+            elif i[0]=='live':
+                accountsdict[self.account]['type']=i[1].get()
+        self.top.destroy()
 
 class SelectAccountEdit:
     def __init__(self, parent):
@@ -136,18 +218,34 @@ class SelectAccountEdit:
         self.accounts=Listbox(top)
         for k in accountsdict.keys():
             self.accounts.insert(END, k)
-        self.accounts.grid(column=0, row=1, rowspan=3, columnspan=2)
         self.ok=Button(top, text='Select',command=self.select)
+        self.delete=Button(top, text='Delete Selected', command=self.deleteAct)
         self.done=Button(top, text='Done',command=self.top.destroy)
         self.ok.grid(column=0,row=4,sticky='ew')
+        self.delete.grid(column=0, row=5, columnspan=2, sticky='ew')
         self.done.grid(column=1, row=4,sticky='ew')
         self.accounts.grid(column=0, row=1, columnspan=2, rowspan=3, sticky='ew')
+
+    def deleteAct(self):
+        x=response=tkMessageBox.askokcancel("Deletion Confirmation","Are you sure you would like to delete this account?")
+        if x:
+            acnt=self.accounts.get(self.accounts.curselection())
+            accountsdict.pop(acnt)
+            sol=tkMessageBox.askokcancel('Continue Editing?','Would you like to continue editing?')
+            if sol:
+                self.accounts.destroy()
+                self.accounts=Listbox(self.top)
+                for k in accountsdict.keys():
+                    self.accounts.insert(END, k)
+                self.accounts.grid(column=0, row=1, rowspan=3, columnspan=2)
+                self.accounts.focus_set()
+            else:
+                self.top.destroy()
 
     def select(self):
         acnt=self.accounts.get(self.accounts.curselection())
         d=EditAccount(self.top, acnt)
         self.top.wait_window(d.top)
-        self.top.wait_window()
 
 class AddAccountWindow:
     def __init__(self, parent):
@@ -162,22 +260,40 @@ class AddAccountWindow:
         self.acttype=Spinbox(top, values=('live','FB'), width=23)
         self.acttype.grid(column=1, row=3)
         self.f=Label(top, text='Site', width=15).grid(column=0, row=3)
-        self.var=IntVar()
-        self.disabled=Checkbutton(top, text='Start Disabled',variable=self.var)
+        self.var=StringVar()
+        self.disabled=Checkbutton(top, text='Start Disabled', onvalue='true', offvalue='false', variable=self.var)
         self.disabled.grid(column=0, row=4, columnspan=2)
-        b = Button(top, text="Save & Exit", command=self.ADDQuit)
-        b.grid(column=0, row=5, columnspan=1, sticky='ew')
+        self.retries=Spinbox(top, values=range(1,11), width=23)
+        self.rt=Label(top, text='Retries', width=25)
+        b = Button(top, text="Save Account", command=self.ADDLogin)
+        b.grid(column=0, row=6, columnspan=1, sticky='ew')
         c=Button(top, text="Cancel",command=self.top.destroy)
-        c.grid(column=2, row=5,columnspan=1,sticky='ew')
-        d=Button(top, text="Save And New",command=self.ADDNew)
-        d.grid(column=1, row=5,columnspan=1,sticky='ew')
+        c.grid(column=2, row=6,columnspan=1,sticky='ew')
+        self.adv=Button(top, text="Show Advanced",command=self.advanced)
+        self.adv.grid(column=1, row=6,columnspan=1,sticky='ew')
+        self.noadv=Button(top, text="Hide Advanced", command=self.hideadv)
 
-    def ADDQuit(self):
+    def advanced(self):
+        self.rt.grid(column=0,row=5,sticky='ew')
+        self.retries.grid(column=1, row=5, sticky='ew')
+        self.adv.grid_remove()
+        self.noadv.grid(column=1, row=6, columnspan=1, sticky='ew')
+
+    def hideadv(self):
+        self.rt.grid_remove()
+        self.retries.grid_remove()
+        self.adv.grid()
+        self.noadv.grid_remove()
+
+    def ADDLogin(self):
         self.getentries()
-        self.top.destroy()
+        result=tkMessageBox.askyesno("Create A New Record", 'Would you like to create another login?')
+        if result:
+            self.ADDNew()
+        else:
+            self.top.destroy()
 
     def ADDNew(self):
-        self.getentries()
         self.username.delete(0,END)
         self.password.delete(0,END)
         self.disabled.deselect()
@@ -187,23 +303,26 @@ class AddAccountWindow:
         pword=self.password.get()
         uname=self.username.get()
         disabled=self.var.get()
-        accountsdict[uname]={'password':pword,'disabled':disabled}
+        retries=self.retries.get()
+        acttype=self.acttype.get()
+        accountsdict[uname]={'password':pword,'disabled':disabled, 'retries':retries, 'type':acttype}
 
 class BingConfig:
     def __init__(self,configfile=os.path.join(os.getcwd(), 'config.xml')):
+        self.startGUI()
+
+    def startGUI(self):
         self.root=Tk()
         self.root.title('ABRAhaM Configuration')
-        self.status=Label(self.root, text='Starting Up...', bg='black',fg='red', width=100)
+        self.status=Label(self.root, text='...Waiting for input...', bg='black',fg='yellow', width=100)
         self.addactbtn=Button(self.root, text='Add Account', width=50, command=self.addact)
         self.editactbtn=Button(self.root, text='Edit Account', width=50,state=DISABLED, command=self.editact)
         self.addsetbtn=Button(self.root, text='Add Preference',width=50, command=self.addset)
         self.editsetbtn=Button(self.root, text='Edit Preferences',width=50,state=DISABLED, command=self.editset)
         self.savebtn=Button(self.root, text='Save',width=50, command=self.save)
-        self.cancelbtn=Button(self.root,text="Cancel",width=50, command=self.exit)
-        Label(self.root, text="No. Accounts Saved").grid(column=0, row=0, sticky='ew')
-        Label(self.root, text="No. Preferences Saved").grid(column=1, row=0, sticky='we')
-        Label(self.root, text=len(accountsdict.keys()), foreground='red', background='black').grid(column=0, row=1, sticky='ew')
-        Label(self.root, text=len(settingsdict.keys()), foreground='red', background='black').grid(column=1, row=1, sticky='ew')
+        self.cancelbtn=Button(self.root,text="Done",width=50, command=self.exit)
+        Label(self.root, text="Please Select an Action to Perform", foreground='red',background='black').grid(column=0, row=0, columnspan=2, sticky='ew')
+
 
         #Build the GUI
         self.status.grid(column=0,row=5,columnspan=2)
@@ -254,14 +373,14 @@ class BingConfig:
         d=EditSettings(self.root)
         self.root.wait_window(d.top)
         self.update()
-        self.status['text']='...No Tasks...'
+        self.status['text']='...Waiting for input...'
 
     def addset(self):
         self.status['text']='Running ADD SETTINGS dialog...'
         d=AddSettings(self.root)
         self.root.wait_window(d.top)
         self.update()
-        self.status['text']='...No Tasks...'
+        self.status['text']='...Waiting for input...'
 
 
 #This is just for testing purposes.  The actions in this script will be imported by the main script
