@@ -9,20 +9,14 @@
 import os
 
 website='http://dustinagee.wix.com/bastardapp'
-
 Version='1.0'
-
 EditDate='4/1/14'
-
 bing_url='http://www.bing.com'
-
 bing_headers={"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-us,en;q=0.5",
     "Accept-Charset": "utf-8",
     "Accept-Encoding": "gzip, deflate",
     "Connection":"keep-alive"}
-
-configfiletemplate='<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\n<Configuration>\n\t<Logins>\n\n\t</Logins>\n</Configuration>'
 
 description="""
     \tDESCRIPTION
@@ -72,7 +66,11 @@ version="""
     ABRAhaM Developed by Dustin Agee
     """%(website, Version, EditDate)
 
-#+_+_+_+_+_+_+_+_+_+_+_+_+_ERROR MESSAGES+_+_+_+_+_+_+_+_+_+_+_+_
 def ErrorMessages(errnum):
-    MessageDict={101:'Config file not found.  The filename does not appear to be valid or the path is not accessible.  Would you like to create a new configuration file?',102:'There was an error reading data from the configuration file.  Either the file is corrupted or is saved in an unknown format.  Would you like to create a new configuration file?',103:'Program cannot run until configuration data is read or a new configuration file is created.  Program will now exit.'}
+    """This will contain all of the error messages that the assorted parts
+    of the program will display whenever something goes wrong.  Storing them here saves
+    coding space and keeps the code a little less cluttered in the main script pages.
+    It makes for easier viewing of the code itself if there isn't a lot of Message Text
+    cluttering up the lines."""
+    MessageDict={101:'Config file not found.  The filename does not appear to be valid or the path is not accessible.  Would you like to procede with an empty configuration file?',102:'There was an error reading data from the configuration file.  Either the file is corrupted or is saved in an unknown format.  Would you like to procede with an empty configuration file?',103:'Program cannot run until configuration data is read or new configuration data is created.  Program will now exit.'}
     return MessageDict[errnum]

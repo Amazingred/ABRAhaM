@@ -4,100 +4,67 @@
 # Author:      Amazingred
 # Created:     1223032414
 #-------------------------------------------------------------------------------
-import sys, re, os, tkMessageBox, xml.dom.minidom
+import sys, re, os, tkMessageBox
+import xml.dom.minidom as minidom
 from Tkinter import *
 import xml.etree.ElementTree as et
 import ABRAhaM_DOC as abedocs
 
-
-#TODONEXT:Check disabled account variable saving, recalling, also make disabled a tickbox in edit and password values hidden in edit
-
-#TODO: Change the scrollbox to a listbox on account and preference selection
-#TODO: Set up advanced account settings with button that spawns another screen contianing all the settings (i.e. timeouts, retries, error messages, alerts when x, etc
-#TODO: Assemble classes with similar class types under class groups...i.e.Configfile, Accounts, Preferences, etc.
-#TODO: insert self.status message updates EVERYWHERE in the script when the operation changes
-
+#These are the holders of all of the configuration data for the script
 accountsdict=dict()
 settingsdict=dict()
 
-class ConfigError(Exception):
-    def __init__(self,message):
-        Exception.__init__(self,message)
-
 class ConfigFile:
+    """Handles all operations dealing with the configuration file itself.
+    Reading, loading variables from the content, and saving are all handled here."""
     def __init__(self, configfile):
-        self.root=Tk()
-        self.root.withdraw()
-        if os.path.exists(configfile):
-            try:
-                self.xmlroot=et.parse(configfile).getroot()
-                self.xmlacnts=self.xmlroot.find('Accounts')
-                if self.xmlacnts==None:
-                    self.xmlacnts=et.SubElement(self.xmlroot, 'Accounts')
-                else:
-                    for acnt in xmlacnts.iter():
-                        accountsdict[acnt.tag]={'password':acnt.find('password').text,'disabled':acnt.find('disabled').text, 'retries':acnt.find('retries').text, 'type':acnt.find('type').text}
-                self.xmlgeneral=self.xmlroot.find('Preferences')
-                if self.xmlpreferences==None:
-                    self.xmlpreferences=et.SubElement(self.xmlroot, 'Preferences')
-            except:
-                if tkMessageBox.askyesno('ERROR',abedocs.ErrorMessages(102)):
-                    self.xmlsetup()
-                else:
-                    tkMessageBox.showerror('PROGRAM EXITING', abedocs.ErrorMessages(103))
-                    sys.exit(1)
-        else:
-            if tkMessageBox.askyesno('ERROR',abedocs.ErrorMessages(101)):
-                self.xmlsetup()
-            else:
+        self.configfile=configfile
+    def read_config_file(self):
+        root=Tk()
+        root.withdraw()
+        if not os.path.exists(self.configfile):
+            if not tkMessageBox.askyesno('ERROR',abedocs.ErrorMessages(101)):
                 tkMessageBox.showerror('PROGRAM EXITING', abedocs.ErrorMessages(103))
                 sys.exit(1)
+        else:
+            try:
+                xmlroot=et.parse(self.configfile).getroot()
+                xmlacnts=xmlroot.find('Accounts')
+                for acnt in xmlacnts.getchildren():
+                    acntname=acnt.attrib['email']
+                    password=acnt.find('password').text
+                    disabled=acnt.find('disabled').text
+                    retries=acnt.find('retries').text
+                    acttype=acnt.find('type').text
+                    accountsdict[acntname]={'password':password,'disabled':disabled, 'retries':retries, 'type':acttype}
+                xmlpreferences=xmlroot.find('Preferences')
+                for preference in xmlpreferences.getchildren():
+                    settingsdict[preference.tag]=preference.text
+            except:
+                if not tkMessageBox.askyesno('ERROR',abedocs.ErrorMessages(102)):
+                    tkMessageBox.showerror('PROGRAM EXITING', abedocs.ErrorMessages(103))
+                    sys.exit(1)
 
-    def xmlsetup(self):
-        #Creates new Elements from scratch
-        #Accounts, Preferences, and Rootnode
-        #Accounts save in this format:
-            #<configure>
-                #<Accounts>
-                    #<login email=abcd@gmail.com disabled=false>
-                        #<type>acttype</type>
-                        #<password>pword</password>
-                        #<customsetting>csetting</customsetting>  <---add these as needed
-                    #</login>
-                #</Accounts>
-                #<Preferences>
-                #</Preferences>
-            #</configure>
-        self.xmlroot=et.Element('Configure')
-        self.xmlpreferences=et.SubElement(self.xmlroot,'Preferences')
-        self.xmlacnts=et.SubElement(self.xmlroot, 'Accounts')
-
-    def readconfig(self):
-        #If os.path.exists(configfilename) attempts to parse the file
-        #Checks to make sure the required elements are there
-        #Adds empty defaults for those that arent
-        #Loads the xml variables for use with the program
-        pass
-
-    def newconfig(self):
-        #Call xmlsetup to create nodes
-        pass
-
-    def saveconfig(self):
-        #Write All preference settings to tree
-        #Write All logins to tree
-        #write any misc settings to tree
-        #Write modification date to tree
-        #prettify
-        #save configfile
-        #change status
-        #close GUI
-        pass
+    def save_config_file(self):
+        xmlroot=et.Element('Configure')
+        xmlacnts=et.SubElement(xmlroot, 'Accounts')
+        xmlpreferences=et.SubElement(xmlroot,'Preferences')
+        for k,v in settingsdict.iteritems():
+            x=et.SubElement(xmlpreferences,k)
+            x.text=v
+        for node in accountsdict.keys():
+            x=et.SubElement(xmlacnts, 'account', {'email':node})
+            for child,value in accountsdict[node].iteritems():
+                head=et.SubElement(x, child)
+                head.text=value
+        f=open(self.configfile, 'w')
+        f.write(self.prettify(xmlroot))
+        f.close()
 
     def prettify(self,elem):
         """Return a pretty-printed XML string for the Element.  Props goes
         to Maxime from stackoverflow for this code."""
-        rough_string = ElementTree.tostring(elem, 'utf-8')
+        rough_string = et.tostring(elem, 'utf-8')
         reparsed = minidom.parseString(rough_string)
         return reparsed.toprettyxml(indent="\t")
 
@@ -105,41 +72,55 @@ class AddSettings:
     def __init__(self, parent):
         top=self.top=Toplevel(parent)
         Label(top, text="Add Settings Dialog").grid(column=0, row=0, columnspan=2,sticky='ew')
+        self.SettingName=Entry(top,width=25)
+        self.SettingValue=Entry(top, width=25)
+        Label(top, text='Setting Key', background='blue', foreground='yellow').grid(column=0, row=1, sticky='ew')
+        Label(top, text='Setting Value', background='blue',foreground='yellow').grid(column=1, row=1, sticky='ew')
+        Label(top, text="Add A New Program Setting").grid(column=0, row=0, columnspan=2, sticky='ew')
+        self.SettingName.grid(column=0, row=2, sticky='ew')
+        self.SettingValue.grid(column=1, row=2, sticky='ew')
+        Button(top, text='Save Setting', command=self.savesetting).grid(column=0, row=3, sticky='ew')
+        Button(top, text='Cancel', command=self.top.destroy).grid(column=1, row=3, sticky='ew')
+
+    def savesetting(self):
+        settingsdict[self.SettingName.get()]=self.SettingValue.get()
+        if tkMessageBox.askyesno('Create Another', 'Would you like to create another setting?'):
+            self.SettingName.delete(0,END)
+            self.SettingValue.delete(0,END)
+            self.SettingName.focus_set()
+        else:
+            self.top.destroy()
 
 class EditSettings:
-    def __init__(self, parent,setting):
+    def __init__(self, parent,setting,value):
         """Edit a setting selected before calling this class."""
-        self.value_list=[]
-        self.setting=setting
         top=self.top=Toplevel(parent)
         Label(top, text="Editing Selected Setting").grid(column=0, row=0, columnspan=2,sticky='ew')
-        self.value_list = []
-        row=1
-        for k,v in settingsdict[self.setting].iteritems():
-            var=StringVar()
-            var.set(v)
-            if k=='disabled':
-                x=Checkbutton(self.top, text='Disabled', onvalue='true', offvalue='false',variable=var).grid(row=row,column=0, columnspan=2, sticky='ew')
-            else:
-                Label(self.top, text=k).grid(row=row, column=0,sticky='ew')
-                Entry(self.top, textvariable=var).grid(row=row, column=1,sticky='ew')
-            row+=1
-            self.value_list.append((k,var))
-        Button(self.top, text='Save Settings',command=self.save_changes).grid(row=row+1, column=0, sticky='ew')
-        Button(self.top, text="Cancel Changes", command=lambda: self.top.destroy()).grid(row=row+1, column=1, sticky='ew')
+        self.var=StringVar()
+        self.var1=StringVar()
+        self.var.set(setting)
+        self.var1.set(value)
+        K=Entry(top, textvariable=self.var, width=25).grid(column=0, row=2, sticky='ew')
+        V=Entry(top, textvariable=self.var1, width=25).grid(column=1, row=2, sticky='ew')
+        Label(top, text='Setting Key', width=25).grid(column=0, row=1, sticky='ew')
+        Label(top, text='Setting Value', width=25).grid(column=1, row=1, sticky='ew')
+
+        Button(self.top, text='Save Settings',command=self.save_changes).grid(row=3, column=0, sticky='ew')
+        Button(self.top, text="Cancel Changes", command=lambda: self.top.destroy()).grid(row=3, column=1, sticky='ew')
 
     def save_changes(self):
-        for i in self.value_list:
-            settingsdict[self.setting][i[0]]=i[1].get()
+        k=self.var.get()
+        v=self.var1.get()
+        settingsdict[k]=v
         self.top.destroy()
 
 class SelectSettingEdit:
     def __init__(self, parent):
         top=self.top=Toplevel(parent)
         Label(top, text="Select A Setting To Edit").grid(column=0, row=0, columnspan=2)
-        self.settings=Listbox(top)
-        for k in settingsdict.keys():
-            self.settings.insert(END, k)
+        self.settings=Listbox(top, width=50, takefocus=True)
+        for k,v in settingsdict.items():
+            self.settings.insert(END, str(k)+'__'+str(v))
         self.ok=Button(top, text='Select',command=self.select)
         self.delete=Button(top, text='Delete Selected', command=self.deleteSetting)
         self.done=Button(top, text='Done',command=self.top.destroy)
@@ -153,23 +134,19 @@ class SelectSettingEdit:
         if x:
             setting=self.settings.get(self.settings.curselection())
             settingsdict.pop(setting)
-            sol=tkMessageBox.askokcancel('Continue Editing?','Would you like to continue editing?')
-            if sol:
-                self.settings.destroy()
-                self.settings=Listbox(self.top)
-                for k in settingsdictdict.keys():
-                    self.settings.insert(END, k)
-                self.settings.grid(column=0, row=1, rowspan=3, columnspan=2)
-                self.settings.focus_set()
-            else:
-                self.top.destroy()
+            self.settings.destroy()
+            self.settings=Listbox(self.top)
+            for k in settingsdict.keys():
+                self.settings.insert(END, k)
+            self.settings.grid(column=0, row=1, rowspan=3, columnspan=2)
+            self.settings.focus_set()
 
     def select(self):
-        setting=self.settings.get(self.settings.curselection())
-        d=EditSettings(self.top, setting)
+        setting=self.settings.get(self.settings.curselection()).split('__')
+        d=EditSettings(self.top, setting[0],setting[1])
         self.top.wait_window(d.top)
 
-class EditAccount:#DONEDONEDONE
+class EditAccount:
     def __init__(self, parent,account):
         """Edit an account selected before calling this class
         User cannot directly edit the account type.  To change the account type
@@ -178,25 +155,19 @@ class EditAccount:#DONEDONEDONE
         self.account=account
         top=self.top=Toplevel(parent)
         Label(top, text="Editing Account Information").grid(column=0, row=0, columnspan=2,sticky='ew')
-        self.value_list = []
         row=1
         for k,v in accountsdict[self.account].iteritems():
-            var=StringVar()
-            var.set(v)
+            self.var=StringVar()
+            self.var.set(v)
             if k=='disabled':
-                x=Checkbutton(self.top, text='Disabled', onvalue='true', offvalue='false',variable=var).grid(row=row,column=0, columnspan=2, sticky='ew')
+                x=Checkbutton(self.top, text='Disabled', onvalue='True', offvalue='False',variable=self.var).grid(row=row,column=0, columnspan=2, sticky='ew')
             else:
                 Label(self.top, text=k).grid(row=row, column=0,sticky='ew')
-                if k=='type':
-                    Entry(self.top, textvariable=var, state=DISABLED).grid(row=row, column=1,sticky='ew')
-                elif k=='password':
-                    Entry(self.top, textvariable=var, show='*').grid(row=row, column=1, sticky='ew')
-                else:
-                    Entry(self.top, textvariable=var).grid(row=row, column=1,sticky='ew')
+                Entry(self.top, textvariable=self.var).grid(row=row, column=1,sticky='ew')
 
             row+=1
-            self.value_list.append((k,var))
-        Button(self.top, text='Save Settings',command=self.save_changes).grid(row=row+1, column=0, sticky='ew')
+            self.value_list.append((k,self.var))
+        Button(self.top, text='Save Settings',command=lambda: self.save_changes()).grid(row=row+1, column=0, sticky='ew')
         Button(self.top, text="Cancel Changes", command=lambda: self.top.destroy()).grid(row=row+1, column=1, sticky='ew')
 
     def save_changes(self):
@@ -212,6 +183,7 @@ class EditAccount:#DONEDONEDONE
         self.top.destroy()
 
 class SelectAccountEdit:
+    """Manages the selection of an account to edit"""
     def __init__(self, parent):
         top=self.top=Toplevel(parent)
         Label(top, text="Select An Account To Edit").grid(column=0, row=0, columnspan=2)
@@ -227,6 +199,7 @@ class SelectAccountEdit:
         self.accounts.grid(column=0, row=1, columnspan=2, rowspan=3, sticky='ew')
 
     def deleteAct(self):
+        """Verifies intent and removes an account entry completely"""
         x=response=tkMessageBox.askokcancel("Deletion Confirmation","Are you sure you would like to delete this account?")
         if x:
             acnt=self.accounts.get(self.accounts.curselection())
@@ -243,11 +216,13 @@ class SelectAccountEdit:
                 self.top.destroy()
 
     def select(self):
+        """Picks the highlighted entry and passes it into the editor"""
         acnt=self.accounts.get(self.accounts.curselection())
         d=EditAccount(self.top, acnt)
         self.top.wait_window(d.top)
 
 class AddAccountWindow:
+    """Manages the Add Account operations"""
     def __init__(self, parent):
         top=self.top=Toplevel(parent)
         Label(top, text="Enter New Login Information").grid(column=0, row=0, columnspan=2)
@@ -261,7 +236,7 @@ class AddAccountWindow:
         self.acttype.grid(column=1, row=3)
         self.f=Label(top, text='Site', width=15).grid(column=0, row=3)
         self.var=StringVar()
-        self.disabled=Checkbutton(top, text='Start Disabled', onvalue='true', offvalue='false', variable=self.var)
+        self.disabled=Checkbutton(top, text='Start Disabled', onvalue='True', offvalue='False', variable=self.var)
         self.disabled.grid(column=0, row=4, columnspan=2)
         self.retries=Spinbox(top, values=range(1,11), width=23)
         self.rt=Label(top, text='Retries', width=25)
@@ -274,18 +249,21 @@ class AddAccountWindow:
         self.noadv=Button(top, text="Hide Advanced", command=self.hideadv)
 
     def advanced(self):
+        """Shows the advanced settings"""
         self.rt.grid(column=0,row=5,sticky='ew')
         self.retries.grid(column=1, row=5, sticky='ew')
         self.adv.grid_remove()
         self.noadv.grid(column=1, row=6, columnspan=1, sticky='ew')
 
     def hideadv(self):
+        """Hides the advanced settings"""
         self.rt.grid_remove()
         self.retries.grid_remove()
         self.adv.grid()
         self.noadv.grid_remove()
 
     def ADDLogin(self):
+        """Adds entries and asks if a new record should be created"""
         self.getentries()
         result=tkMessageBox.askyesno("Create A New Record", 'Would you like to create another login?')
         if result:
@@ -294,12 +272,14 @@ class AddAccountWindow:
             self.top.destroy()
 
     def ADDNew(self):
+        """Resets the window with empty entry boxes for a new record"""
         self.username.delete(0,END)
         self.password.delete(0,END)
         self.disabled.deselect()
         self.username.focus_set()
 
     def getentries(self):
+        """Retrieves entries from window and saves them into the dictionary"""
         pword=self.password.get()
         uname=self.username.get()
         disabled=self.var.get()
@@ -308,7 +288,9 @@ class AddAccountWindow:
         accountsdict[uname]={'password':pword,'disabled':disabled, 'retries':retries, 'type':acttype}
 
 class BingConfig:
+    """Main Configuration Script Manager"""
     def __init__(self,configfile=os.path.join(os.getcwd(), 'config.xml')):
+        self.configfile=configfile
         self.startGUI()
 
     def startGUI(self):
@@ -323,7 +305,6 @@ class BingConfig:
         self.cancelbtn=Button(self.root,text="Done",width=50, command=self.exit)
         Label(self.root, text="Please Select an Action to Perform", foreground='red',background='black').grid(column=0, row=0, columnspan=2, sticky='ew')
 
-
         #Build the GUI
         self.status.grid(column=0,row=5,columnspan=2)
         self.addactbtn.grid(column=0,row=2)
@@ -332,17 +313,26 @@ class BingConfig:
         self.addsetbtn.grid(column=1,row=2)
         self.savebtn.grid(column=0,row=4)
         self.cancelbtn.grid(column=1,row=4)
-
+        self.update()
+        if tkMessageBox.askyesnocancel('Load Configuration Data', 'Would you like to load the data from the configuration file?'):
+            self.status['text']='Reading and loading saved configuration data...'
+            self.cfg=ConfigFile(self.configfile)
+            self.cfg.read_config_file()
+            self.update()
+            self.status['text']='Configuration data loaded...waiting for input...'
         mainloop()
 
     def save(self):
+        """Saves the configuration data to file"""
         self.status['text']='Saving Written Data to file...'
-        #Save all configuration settings to config.xml (or user defined name)
-        #Need to call up the configfile class here and initiate the save function
-        pass
+        self.cfg.save_config_file()
+        self.exit()
 
     def exit(self):
         self.status['text']='Program Exiting'
+        if tkMessageBox.askyesno("Save?", 'Would you like to save before you exit?  Any usaved data will be LOST.'):
+            self.status['text']='Filesaving operations starting....'
+            self.save()
         self.root.destroy()
         sys.exit()
 
@@ -354,6 +344,7 @@ class BingConfig:
         self.update()
 
     def editact(self):
+        """Loads in the saved accounts for editing"""
         self.status['text']='Running Edit Account Dialog'
         d=SelectAccountEdit(self.root)
         self.root.wait_window(d.top)
@@ -370,18 +361,17 @@ class BingConfig:
 
     def editset(self):
         self.status['text']='Running EDIT SETTINGS dialog...'
-        d=EditSettings(self.root)
+        d=SelectSettingEdit(self.root)
         self.root.wait_window(d.top)
         self.update()
-        self.status['text']='...Waiting for input...'
+        self.status['text']='...Dialog completed...Waiting for input...'
 
     def addset(self):
         self.status['text']='Running ADD SETTINGS dialog...'
         d=AddSettings(self.root)
         self.root.wait_window(d.top)
         self.update()
-        self.status['text']='...Waiting for input...'
-
+        self.status['text']='...Dialog completed...Waiting for input...'
 
 #This is just for testing purposes.  The actions in this script will be imported by the main script
 BingConfig()
