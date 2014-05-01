@@ -38,10 +38,13 @@ ABRAhaM_DOCS.py
     e. Storage of all Configui.py status, error, and info messages----INCOMPLETE
 
 ABRAhaM_NAVIGATE.py
-    a. Successfull interaction and valid verification with bing rewards account interface ----- PARTIALLY DONE, STILL NEED TO STUDY THE CODE TO UNDERSTAND IT BETTER
+    a. Successfull interaction and valid verification with bing rewards account interface ----- DONE
     b. remember that configuration data and preferences will be handled by the main script so by the time the code gets here most of the tweaks should already be defined and assigned.
     c. perform navigation to the initial page, login pages, search page, queries finder pages, etc
     d. perform navigation to gather informatino about the user account to save in the logs and output
+
+ABRAhaM_SELENIUM.py
+    a. Will update these goals at a later time.
 
 ABRAhaM_QUERIES.py
     a. NO OPERATIONS DEFINED AS OF YET.  FUTURE PROJECT
